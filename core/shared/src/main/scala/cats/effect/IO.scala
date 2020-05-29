@@ -102,14 +102,14 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
    */
   final def map[B](f: A => B): IO[B] =
     this match {
-      case Map(source, g, index) =>
+      case Map(source, g, index, _) =>
         // Allowed to do fixed number of map operations fused before
         // resetting the counter in order to avoid stack overflows;
         // See `IOPlatform` for details on this maximum.
-        if (index != fusionMaxStackDepth) Map(source, g.andThen(f), index + 1)
-        else Map(this, f, 0)
+        if (index != fusionMaxStackDepth) Map(source, g.andThen(f), index + 1, null)
+        else Map(this, f, 0, null)
       case _ =>
-        Map(this, f, 0)
+        Map(this, f, 0, null)
     }
 
   /**
@@ -128,7 +128,7 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
    * never terminate on evaluation.
    */
   final def flatMap[B](f: A => IO[B]): IO[B] =
-    Bind(this, f)
+    Bind(this, f, null)
 
   /**
    * Materializes any sequenced exceptions into value space, where
@@ -144,7 +144,7 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
    * @see [[IO.raiseError]]
    */
   def attempt: IO[Either[Throwable, A]] =
-    Bind(this, AttemptIO.asInstanceOf[A => IO[Either[Throwable, A]]])
+    Bind(this, AttemptIO.asInstanceOf[A => IO[Either[Throwable, A]]], null)
 
   /**
    * Produces an `IO` reference that should execute the source on
@@ -672,7 +672,7 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
    * Implements `ApplicativeError.handleErrorWith`.
    */
   def handleErrorWith[AA >: A](f: Throwable => IO[AA]): IO[AA] =
-    IO.Bind(this, new IOFrame.ErrorHandler(f))
+    IO.Bind(this, new IOFrame.ErrorHandler(f), null)
 
   /**
    * Zips both this action and the parameter in parallel.
@@ -706,7 +706,7 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
    *        in case it ends in success
    */
   def redeem[B](recover: Throwable => B, map: A => B): IO[B] =
-    IO.Bind(this, new IOFrame.Redeem(recover, map))
+    IO.Bind(this, new IOFrame.Redeem(recover, map), null)
 
   /**
    * Returns a new value that transforms the result of the source,
@@ -738,7 +738,7 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
    *        in case of success
    */
   def redeemWith[B](recover: Throwable => IO[B], bind: A => IO[B]): IO[B] =
-    IO.Bind(this, new IOFrame.RedeemWith(recover, bind))
+    IO.Bind(this, new IOFrame.RedeemWith(recover, bind), null)
 
   override def toString: String = this match {
     case Pure(a)       => s"IO($a)"
@@ -1575,10 +1575,10 @@ object IO extends IOInstances {
   final private[effect] case class Suspend[+A](thunk: () => IO[A]) extends IO[A]
 
   /** Corresponds to [[IO.flatMap]]. */
-  final private[effect] case class Bind[E, +A](source: IO[E], f: E => IO[A]) extends IO[A]
+  final private[effect] case class Bind[E, +A](source: IO[E], f: E => IO[A], trace: AnyRef) extends IO[A]
 
   /** Corresponds to [[IO.map]]. */
-  final private[effect] case class Map[E, +A](source: IO[E], f: E => A, index: Int) extends IO[A] with (E => IO[A]) {
+  final private[effect] case class Map[E, +A](source: IO[E], f: E => A, index: Int, trace: AnyRef) extends IO[A] with (E => IO[A]) {
     override def apply(value: E): IO[A] =
       new Pure(f(value))
   }

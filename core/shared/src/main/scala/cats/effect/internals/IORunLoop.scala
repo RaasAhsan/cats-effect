@@ -70,7 +70,10 @@ private[effect] object IORunLoop {
 
     while ({
       currentIO match {
-        case Bind(fa, bindNext) =>
+        case Bind(fa, bindNext, trace) =>
+          if (cats.effect.internals.TracingPlatformFast.enabled) {
+            println(trace)
+          }
           if (bFirst ne null) {
             if (bRest eq null) bRest = new ArrayStack()
             bRest.push(bFirst)
@@ -110,7 +113,10 @@ private[effect] object IORunLoop {
               currentIO = fa
           }
 
-        case bindNext @ Map(fa, _, _) =>
+        case bindNext @ Map(fa, _, _, trace) =>
+          if (cats.effect.internals.TracingPlatformFast.enabled) {
+            println(trace)
+          }
           if (bFirst ne null) {
             if (bRest eq null) bRest = new ArrayStack()
             bRest.push(bFirst)
@@ -131,7 +137,7 @@ private[effect] object IORunLoop {
           if (conn ne old) {
             if (rcb ne null) rcb.contextSwitch(conn)
             if (restore ne null)
-              currentIO = Bind(next, new RestoreContext(old, restore))
+              currentIO = Bind(next, new RestoreContext(old, restore), null)
           }
       }
 
@@ -176,7 +182,10 @@ private[effect] object IORunLoop {
 
     while ({
       currentIO match {
-        case Bind(fa, bindNext) =>
+        case bind @ Bind(fa, bindNext, _) =>
+          if (cats.effect.internals.TracingPlatformFast.enabled) {
+            println(bind.trace)
+          }
           if (bFirst ne null) {
             if (bRest eq null) bRest = new ArrayStack()
             bRest.push(bFirst)
@@ -216,7 +225,10 @@ private[effect] object IORunLoop {
               currentIO = fa
           }
 
-        case bindNext @ Map(fa, _, _) =>
+        case bindNext @ Map(fa, _, _, _) =>
+          if (cats.effect.internals.TracingPlatformFast.enabled) {
+            println(bindNext.trace)
+          }
           if (bFirst ne null) {
             if (bRest eq null) bRest = new ArrayStack()
             bRest.push(bFirst)
