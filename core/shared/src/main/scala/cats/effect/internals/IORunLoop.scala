@@ -31,14 +31,14 @@ private[effect] object IORunLoop {
    * with the result when completed.
    */
   def start[A](source: IO[A], cb: Either[Throwable, A] => Unit): Unit =
-    loop(source, IOConnection.uncancelable, cb.asInstanceOf[Callback], null, null, null)
+    loop(source, IOConnection.uncancelable, cb.asInstanceOf[Callback], null, null, new ArrayStack())
 
   /**
    * Evaluates the given `IO` reference, calling the given callback
    * with the result when completed.
    */
   def startCancelable[A](source: IO[A], conn: IOConnection, cb: Either[Throwable, A] => Unit): Unit =
-    loop(source, conn, cb.asInstanceOf[Callback], null, null, null)
+    loop(source, conn, cb.asInstanceOf[Callback], null, null, new ArrayStack())
 
   /**
    * Loop for evaluating an `IO` value.
@@ -59,7 +59,7 @@ private[effect] object IORunLoop {
     // Can change on a context switch
     var conn: IOConnection = cancelable
     var bFirst: Bind = bFirstRef
-    var bRest: CallStack = bRestRef
+    val bRest: CallStack = bRestRef
     var rcb: RestartCallback = rcbRef
     // Values from Pure and Delay are unboxed in this var,
     // for code reuse between Pure and Delay
@@ -72,7 +72,6 @@ private[effect] object IORunLoop {
       currentIO match {
         case Bind(fa, bindNext) =>
           if (bFirst ne null) {
-            if (bRest eq null) bRest = new ArrayStack()
             bRest.push(bFirst)
           }
           bFirst = bindNext.asInstanceOf[Bind]
@@ -112,7 +111,6 @@ private[effect] object IORunLoop {
 
         case bindNext @ Map(fa, _, _) =>
           if (bFirst ne null) {
-            if (bRest eq null) bRest = new ArrayStack()
             bRest.push(bFirst)
           }
           bFirst = bindNext.asInstanceOf[Bind]
@@ -168,7 +166,7 @@ private[effect] object IORunLoop {
   def step[A](source: IO[A]): IO[A] = {
     var currentIO: Current = source
     var bFirst: Bind = null
-    var bRest: CallStack = null
+    val bRest: CallStack = new ArrayStack()
     // Values from Pure and Delay are unboxed in this var,
     // for code reuse between Pure and Delay
     var hasUnboxed: Boolean = false
@@ -178,7 +176,7 @@ private[effect] object IORunLoop {
       currentIO match {
         case Bind(fa, bindNext) =>
           if (bFirst ne null) {
-            if (bRest eq null) bRest = new ArrayStack()
+//            if (bRest eq null) bRest = new ArrayStack()
             bRest.push(bFirst)
           }
           bFirst = bindNext.asInstanceOf[Bind]
@@ -218,7 +216,7 @@ private[effect] object IORunLoop {
 
         case bindNext @ Map(fa, _, _) =>
           if (bFirst ne null) {
-            if (bRest eq null) bRest = new ArrayStack()
+//            if (bRest eq null) bRest = new ArrayStack()
             bRest.push(bFirst)
           }
           bFirst = bindNext.asInstanceOf[Bind]
