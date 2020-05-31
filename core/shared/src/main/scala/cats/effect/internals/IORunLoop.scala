@@ -70,10 +70,7 @@ private[effect] object IORunLoop {
 
     while ({
       currentIO match {
-        case Bind(fa, bindNext, trace) =>
-          if (cats.effect.internals.TracingPlatformFast.enabled) {
-            println(trace)
-          }
+        case Bind(fa, bindNext, _) =>
           if (bFirst ne null) {
             if (bRest eq null) bRest = new ArrayStack()
             bRest.push(bFirst)
@@ -113,10 +110,7 @@ private[effect] object IORunLoop {
               currentIO = fa
           }
 
-        case bindNext @ Map(fa, _, _, trace) =>
-          if (cats.effect.internals.TracingPlatformFast.enabled) {
-            println(trace)
-          }
+        case bindNext @ Map(fa, _, _, _) =>
           if (bFirst ne null) {
             if (bRest eq null) bRest = new ArrayStack()
             bRest.push(bFirst)

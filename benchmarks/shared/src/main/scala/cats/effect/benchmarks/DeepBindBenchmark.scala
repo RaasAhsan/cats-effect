@@ -16,8 +16,11 @@
 package cats.effect.benchmarks
 
 import java.util.concurrent.TimeUnit
+
+import cats.effect
 import cats.effect.{ContextShift, IO}
 import org.openjdk.jmh.annotations._
+
 import scala.concurrent.ExecutionContext.Implicits
 
 /** To do comparative benchmarks between versions:
@@ -45,25 +48,20 @@ class DeepBindBenchmark {
 
   @Benchmark
   def pure(): Int = {
-    def loop(i: Int): IO[Int] =
-      for {
-        j <- IO.pure(i)
-        _ <- if (j > size) IO.pure(j) else loop(j + 1)
-      } yield j
-
-    loop(0).unsafeRunSync()
+    new effect.IO.Bind[Int, Int](IO.pure(2), a => IO.pure(a + 1), null)
+    0
   }
 
-  @Benchmark
-  def delay(): Int = {
-    def loop(i: Int): IO[Int] =
-      for {
-        j <- IO(i)
-        _ <- if (j > size) IO(j) else loop(j + 1)
-      } yield j
-
-    loop(0).unsafeRunSync()
-  }
+//  @Benchmark
+//  def delay(): Int = {
+//    def loop(i: Int): IO[Int] =
+//      for {
+//        j <- IO(i)
+//        _ <- if (j > size) IO(j) else loop(j + 1)
+//      } yield j
+//
+//    loop(0).unsafeRunSync()
+//  }
 
 //  @Benchmark
 //  def async(): Int = {
