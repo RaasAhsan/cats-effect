@@ -1613,8 +1613,6 @@ object IO extends IOInstances {
     trampolineAfter: Boolean = false
   ) extends IO[A]
 
-  final private[effect] case class Trace[A](source: IO[A], frame: TraceFrame) extends IO[A]
-
   /**
    * An internal state for that optimizes changes to
    * [[internals.IOConnection]].

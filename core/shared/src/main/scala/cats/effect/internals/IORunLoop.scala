@@ -17,7 +17,7 @@
 package cats.effect.internals
 
 import cats.effect.IO
-import cats.effect.IO.{Async, Bind, ContextSwitch, Delay, Map, Pure, RaiseError, Suspend, Trace}
+import cats.effect.IO.{Async, Bind, ContextSwitch, Delay, Map, Pure, RaiseError, Suspend}
 
 import scala.util.control.NonFatal
 
@@ -159,13 +159,6 @@ private[effect] object IORunLoop {
             if (restore ne null)
               currentIO = Bind(next, new RestoreContext(old, restore), null)
           }
-
-        case Trace(source, frame) =>
-          println(source)
-          println(frame)
-//          if (ctx eq null) ctx = IOContext()
-//          ctx.pushFrame(frame)
-//          currentIO = source
       }
 
       if (hasUnboxed) {
