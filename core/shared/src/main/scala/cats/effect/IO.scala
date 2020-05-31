@@ -27,7 +27,7 @@ import scala.concurrent.{ExecutionContext, Future, Promise, TimeoutException}
 import scala.util.control.NonFatal
 import scala.util.{Failure, Left, Right, Success, Try}
 import cats.data.Ior
-import cats.effect.tracing.{IOTrace, TraceFrame, TraceTag, TracingMode}
+import cats.effect.tracing.TraceFrame
 
 /**
  * A pure abstraction representing the intention to perform a
@@ -106,7 +106,7 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
     if (isTracingEnabled) {
       // Don't perform map fusion when tracing is enabled.
       // We may end up removing map fusion altogether.
-      Map(this, f, 0, IOTracing.trace(TraceTag.Map, f.getClass))
+      Map(this, f, 0, null)
     } else {
       this match {
         case Map(source, g, index, null) =>
@@ -137,7 +137,7 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
    */
   final def flatMap[B](f: A => IO[B]): IO[B] =
     if (isTracingEnabled) {
-      Bind(this, f, IOTracing.trace(TraceTag.Bind, f.getClass))
+      Bind(this, f, null)
     } else {
       Bind(this, f, null)
     }
@@ -575,14 +575,8 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
    *        canceled, receiving as input the resource that needs to
    *        be released
    */
-  final def bracket[B](use: A => IO[B])(release: A => IO[Unit]): IO[B] = {
-    val nextIo = IOBracket(this)(use)((a, _) => release(a))
-    if (isTracingEnabled) {
-      IOTracing.cached(nextIo, TraceTag.Bracket, use.getClass)
-    } else {
-      nextIo
-    }
-  }
+  final def bracket[B](use: A => IO[B])(release: A => IO[Unit]): IO[B] =
+    IOBracket(this)(use)((a, _) => release(a))
 
   /**
    * Returns a new `IO` task that treats the source task as the
@@ -616,14 +610,8 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
    *        release, along with the result of `use`
    *        (cancellation, error or successful result)
    */
-  def bracketCase[B](use: A => IO[B])(release: (A, ExitCase[Throwable]) => IO[Unit]): IO[B] = {
-    val nextIo = IOBracket(this)(use)(release)
-    if (isTracingEnabled) {
-      IOTracing.cached(nextIo, TraceTag.BracketCase, use.getClass)
-    } else {
-      nextIo
-    }
-  }
+  def bracketCase[B](use: A => IO[B])(release: (A, ExitCase[Throwable]) => IO[Unit]): IO[B] =
+    IOBracket(this)(use)(release)
 
   /**
    * Executes the given `finalizer` when the source is finished,
@@ -804,19 +792,6 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
   def <&[B](another: IO[B])(implicit p: NonEmptyParallel[IO]): IO[A] =
     p.parProductL(this)(another)
 
-  def slugTrace: IO[A] =
-    if (isTracingEnabled) {
-      IOTracing.locallyTraced(this, TracingMode.Slug)
-    } else {
-      this
-    }
-
-  def rabbitTrace: IO[A] =
-    if (isTracingEnabled) {
-      IOTracing.locallyTraced(this, TracingMode.Rabbit)
-    } else {
-      this
-    }
 }
 
 abstract private[effect] class IOParallelNewtype extends internals.IOTimerRef with internals.IOCompanionBinaryCompat {
@@ -1149,14 +1124,8 @@ object IO extends IOInstances {
    * Any exceptions thrown by the effect will be caught and sequenced
    * into the `IO`.
    */
-  def delay[A](body: => A): IO[A] = {
-    val nextIo = Delay(() => body)
-    if (isTracingEnabled) {
-      IOTracing.uncached(nextIo, TraceTag.Delay)
-    } else {
-      nextIo
-    }
-  }
+  def delay[A](body: => A): IO[A] =
+    Delay(() => body)
 
   /**
    * Suspends a synchronous side effect which produces an `IO` in `IO`.
@@ -1166,14 +1135,8 @@ object IO extends IOInstances {
    * thrown by the side effect will be caught and sequenced into the
    * `IO`.
    */
-  def suspend[A](thunk: => IO[A]): IO[A] = {
-    val nextIo = Suspend(() => thunk)
-    if (isTracingEnabled) {
-      IOTracing.uncached(nextIo, TraceTag.Suspend)
-    } else {
-      nextIo
-    }
-  }
+  def suspend[A](thunk: => IO[A]): IO[A] =
+    Suspend(() => thunk)
 
   /**
    * Suspends a pure value in `IO`.
@@ -1186,11 +1149,7 @@ object IO extends IOInstances {
    * extra thunks.
    */
   def pure[A](a: A): IO[A] =
-    if (isTracingEnabled) {
-      IOTracing.uncached(Pure(a), TraceTag.Pure)
-    } else {
-      Pure(a)
-    }
+    Pure(a)
 
   /** Alias for `IO.pure(())`. */
   val unit: IO[Unit] = pure(())
@@ -1255,19 +1214,12 @@ object IO extends IOInstances {
    *
    * @see [[asyncF]] and [[cancelable]]
    */
-  def async[A](k: (Either[Throwable, A] => Unit) => Unit): IO[A] = {
-    val nextIo = Async[A] { (_, _, cb) =>
+  def async[A](k: (Either[Throwable, A] => Unit) => Unit): IO[A] =
+    Async[A] { (_, cb) =>
       val cb2 = Callback.asyncIdempotent(null, cb)
       try k(cb2)
       catch { case NonFatal(t) => cb2(Left(t)) }
     }
-
-    if (isTracingEnabled) {
-      IOTracing.cached(nextIo, TraceTag.Async, k.getClass)
-    } else {
-      nextIo
-    }
-  }
 
   /**
    * Suspends an asynchronous side effect in `IO`, this being a variant
@@ -1293,8 +1245,8 @@ object IO extends IOInstances {
    *
    * @see [[async]] and [[cancelable]]
    */
-  def asyncF[A](k: (Either[Throwable, A] => Unit) => IO[Unit]): IO[A] = {
-    val nextIo = Async[A] { (conn, _, cb) =>
+  def asyncF[A](k: (Either[Throwable, A] => Unit) => IO[Unit]): IO[A] =
+    Async[A] { (conn, cb) =>
       // Must create new connection, otherwise we can have a race
       // condition b/t the bind continuation and `startCancelable` below
       val conn2 = IOConnection()
@@ -1306,13 +1258,6 @@ object IO extends IOInstances {
         catch { case NonFatal(t) => IO(cb2(Left(t))) }
       IORunLoop.startCancelable(fa, conn2, Callback.report)
     }
-
-    if (isTracingEnabled) {
-      IOTracing.cached(nextIo, TraceTag.AsyncF, k.getClass)
-    } else {
-      nextIo
-    }
-  }
 
   /**
    * Builds a cancelable `IO`.
@@ -1353,8 +1298,8 @@ object IO extends IOInstances {
    * @see [[asyncF]] for a more potent version that does hook into
    *      the underlying cancelation model
    */
-  def cancelable[A](k: (Either[Throwable, A] => Unit) => CancelToken[IO]): IO[A] = {
-    val nextIo = Async[A] { (conn, _, cb) =>
+  def cancelable[A](k: (Either[Throwable, A] => Unit) => CancelToken[IO]): IO[A] =
+    Async[A] { (conn, cb) =>
       val cb2 = Callback.asyncIdempotent(conn, cb)
       val ref = ForwardCancelable()
       conn.push(ref.cancel)
@@ -1373,13 +1318,6 @@ object IO extends IOInstances {
       else
         ref.complete(IO.unit)
     }
-
-    if (isTracingEnabled) {
-      IOTracing.cached(nextIo, TraceTag.Cancelable, k.getClass)
-    } else {
-      nextIo
-    }
-  }
 
   /**
    * Constructs an `IO` which sequences the specified exception.
@@ -1549,7 +1487,7 @@ object IO extends IOInstances {
    * }}}
    */
   val cancelBoundary: IO[Unit] = {
-    val start: Start[Unit] = (_, _, cb) => cb(Callback.rightUnit)
+    val start: Start[Unit] = (_, cb) => cb(Callback.rightUnit)
     Async(start, trampolineAfter = true)
   }
 
@@ -1630,9 +1568,6 @@ object IO extends IOInstances {
   def contextShift(ec: ExecutionContext): ContextShift[IO] =
     IOContextShift(ec)
 
-  val backtrace: IO[IOTrace] =
-    IOTracing.backtrace
-
   /* -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */
   /* IO's internal encoding: */
 
@@ -1674,7 +1609,7 @@ object IO extends IOInstances {
    *        signal downstream
    */
   final private[effect] case class Async[+A](
-    k: (IOConnection, IOContext, Either[Throwable, A] => Unit) => Unit,
+    k: (IOConnection, Either[Throwable, A] => Unit) => Unit,
     trampolineAfter: Boolean = false
   ) extends IO[A]
 
