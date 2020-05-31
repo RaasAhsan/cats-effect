@@ -100,17 +100,22 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
    * failures would be completely silent and `IO` references would
    * never terminate on evaluation.
    */
-  final def map[B](f: A => B): IO[B] =
-    this match {
-      case Map(source, g, index, _) =>
-        // Allowed to do fixed number of map operations fused before
-        // resetting the counter in order to avoid stack overflows;
-        // See `IOPlatform` for details on this maximum.
-        if (index != fusionMaxStackDepth) Map(source, g.andThen(f), index + 1, null)
-        else Map(this, f, 0, null)
-      case _ =>
-        Map(this, f, 0, null)
+  final def map[B](f: A => B): IO[B] = {
+    if (cats.effect.internals.TracingPlatformFast.enabled) {
+      Map(this, f, 0, null)
+    } else {
+      this match {
+        case Map(source, g, index, _) =>
+          // Allowed to do fixed number of map operations fused before
+          // resetting the counter in order to avoid stack overflows;
+          // See `IOPlatform` for details on this maximum.
+          if (index != fusionMaxStackDepth) Map(source, g.andThen(f), index + 1, null)
+          else Map(this, f, 0, null)
+        case _ =>
+          Map(this, f, 0, null)
+      }
     }
+  }
 
   /**
    * Monadic bind on `IO`, used for sequentially composing two `IO`
@@ -127,8 +132,13 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
    * failures would be completely silent and `IO` references would
    * never terminate on evaluation.
    */
-  final def flatMap[B](f: A => IO[B]): IO[B] =
-    Bind(this, f, null)
+  final def flatMap[B](f: A => IO[B]): IO[B] = {
+    if (cats.effect.internals.TracingPlatformFast.enabled) {
+      Bind(this, f, null)
+    } else {
+      Bind(this, f, null)
+    }
+  }
 
   /**
    * Materializes any sequenced exceptions into value space, where
