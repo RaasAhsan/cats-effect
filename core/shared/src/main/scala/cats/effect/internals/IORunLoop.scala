@@ -218,7 +218,7 @@ private[effect] object IORunLoop {
     var currentIO: Current = source
     var bFirst: Bind = null
     var bRest: CallStack = null
-    var ctx: IOContext = null
+    val ctx: IOContext = null
     // Values from Pure and Delay are unboxed in this var,
     // for code reuse between Pure and Delay
     var hasUnboxed: Boolean = false
@@ -226,16 +226,16 @@ private[effect] object IORunLoop {
 
     while ({
       currentIO match {
-        case bind @ Bind(fa, bindNext, _) =>
+        case Bind(fa, bindNext, _) =>
           if (bFirst ne null) {
             if (bRest eq null) bRest = new ArrayStack()
             bRest.push(bFirst)
           }
-          if (isTracingEnabled) {
-            val trace = bind.trace
-            if (ctx eq null) ctx = IOContext()
-            if (trace ne null) ctx.pushFrame(trace)
-          }
+//          if (isTracingEnabled) {
+//            val trace = bind.trace
+//            if (ctx eq null) ctx = IOContext()
+//            if (trace ne null) ctx.pushFrame(trace)
+//          }
           bFirst = bindNext.asInstanceOf[Bind]
           currentIO = fa
 
@@ -276,21 +276,23 @@ private[effect] object IORunLoop {
             if (bRest eq null) bRest = new ArrayStack()
             bRest.push(bFirst)
           }
-          if (isTracingEnabled) {
-            val trace = bindNext.trace
-            if (ctx eq null) ctx = IOContext()
-            if (trace ne null) ctx.pushFrame(trace)
-          }
+//          if (isTracingEnabled) {
+//            val trace = bindNext.trace
+//            if (ctx eq null) ctx = IOContext()
+//            if (trace ne null) ctx.pushFrame(trace)
+//          }
           bFirst = bindNext.asInstanceOf[Bind]
           currentIO = fa
 
         case Async(_, _) =>
           // Cannot inline the code of this method — as it would
           // box those vars in scala.runtime.ObjectRef!
-          return suspendAsync(currentIO.asInstanceOf[IO.Async[A]], bFirst, bRest)
+          return suspendAsync(currentIO.asInstanceOf[IO.Async[A]], bFirst, bRest, ctx)
 
         case _ =>
-          return Async { (conn, ctx, cb) =>
+          return Async { (conn, _, cb) =>
+            // The run-loop that interprets this Async node needs
+            // to pass the IOContext we have built up so far.
             loop(currentIO, conn, cb.asInstanceOf[Callback], ctx, null, bFirst, bRest)
           }
       }
@@ -316,12 +318,12 @@ private[effect] object IORunLoop {
     // $COVERAGE-ON$
   }
 
-  private def suspendAsync[A](currentIO: IO.Async[A], bFirst: Bind, bRest: CallStack): IO[A] =
+  private def suspendAsync[A](currentIO: IO.Async[A], bFirst: Bind, bRest: CallStack, ctx: IOContext): IO[A] =
     // Hitting an async boundary means we have to stop, however
     // if we had previous `flatMap` operations then we need to resume
     // the loop with the collected stack
     if (bFirst != null || (bRest != null && !bRest.isEmpty))
-      Async { (conn, ctx, cb) =>
+      Async { (conn, _, cb) =>
         loop(currentIO, conn, cb.asInstanceOf[Callback], ctx, null, bFirst, bRest)
       }
     else

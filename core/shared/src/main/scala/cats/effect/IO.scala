@@ -135,14 +135,12 @@ sealed abstract class IO[+A] extends internals.IOBinaryCompat[A] {
    * failures would be completely silent and `IO` references would
    * never terminate on evaluation.
    */
-  final def flatMap[B](f: A => IO[B]): IO[B] = {
-    val trace = if (isTracingEnabled) {
-      IOTracing.trace(TraceTag.Bind, f.getClass)
+  final def flatMap[B](f: A => IO[B]): IO[B] =
+    if (isTracingEnabled) {
+      Bind(this, f, IOTracing.trace(TraceTag.Bind, f.getClass))
     } else {
-      null
+      Bind(this, f, null)
     }
-    Bind(this, f, trace)
-  }
 
   /**
    * Materializes any sequenced exceptions into value space, where
