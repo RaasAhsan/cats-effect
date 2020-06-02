@@ -48,8 +48,13 @@ class DeepBindBenchmark {
 
   @Benchmark
   def pure(): Int = {
-    new effect.IO.Bind[Int, Int](IO.pure(2), a => IO.pure(a + 1), null)
-    0
+    def loop(i: Int): IO[Int] =
+      for {
+        j <- IO.pure(i)
+        _ <- if (j > size) IO.pure(j) else loop(j + 1)
+      } yield j
+
+    loop(0).unsafeRunSync()
   }
 
 //  @Benchmark

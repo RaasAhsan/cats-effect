@@ -16,4 +16,4 @@
 
 package cats.effect.internals
 
-final case class TraceFrame()
+final class TraceFrame()
