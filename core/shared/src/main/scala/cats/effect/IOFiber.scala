@@ -120,7 +120,7 @@ private[effect] final class IOFiber[A](name: String, scheduler: unsafe.Scheduler
     callbacks.push(cb)
   }
 
-  var cancel: IO[Unit] = {
+  var cancel: IO[Unit] = IO.uncancelable { _ =>
     val prelude = IO {
       canceled = true
       cancel = IO.unit
