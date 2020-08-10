@@ -342,7 +342,7 @@ private final class IOFiber[A](
              * to true. Either way, we won't own the runloop.
              */
             @tailrec
-            def loop(old: Byte): Unit = {
+            def resumeLoop(old: Byte): Unit = {
               if (resume()) {
                 state.lazySet(AsyncStateDone) // avoid leaks
 
@@ -366,7 +366,7 @@ private final class IOFiber[A](
                   suspend()
                 }
               } else if (!shouldFinalize()) {
-                loop(old)
+                resumeLoop(old)
               }
 
               // If we reach this point, it means that somebody else owns the run-loop
@@ -390,7 +390,7 @@ private final class IOFiber[A](
                 if (state.compareAndSet(old, result)) {
                   if (tag == 1 || tag == 2) {
                     // registration has completed, so reacquire the runloop
-                    loop(tag)
+                    resumeLoop(tag)
                   }
                 } else {
                   stateLoop()
