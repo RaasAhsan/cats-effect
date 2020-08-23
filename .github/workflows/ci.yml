@@ -24,10 +24,7 @@ jobs:
         os: [ubuntu-latest]
         scala: [0.25.0, 0.26.0-RC1, 2.12.12, 2.13.3]
         java:
-          - adopt@1.8
-          - adopt@11
-          - adopt@14
-          - graalvm8@20.1.0
+          - adopt@1.11
         ci: [ciJVM]
         include:
           - os: ubuntu-latest
